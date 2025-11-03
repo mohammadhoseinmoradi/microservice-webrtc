@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  # 🎯 سرور اصلی (NestJS)
+  main-server:
+    build:
+      context: ./chat-app
+      dockerfile: Dockerfile
+    container_name: main-server
+    ports:
+      - "3000:3000"  # REST API
+      - "5000:5000"  # WebSocket
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=your-super-secret-jwt-key
+      - DB_HOST=mysql-db
+      - DB_PORT=3306
+      - DB_USERNAME=admin
+      - DB_PASSWORD=password
+      - DB_DATABASE=myapp_new
+      - LOGGER1_URL=logger1-service:5001
+      - LOGGER2_URL=logger2-service:5002
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+      logger1-service:
+        condition: service_healthy
+      logger2-service:
+        condition: service_healthy
+    networks:
+      - chat-network
+    restart: unless-stopped
+
+  # 📝 سرویس لاگر ۱ (تماس‌های قبول شده)
+  logger1-service:
+    build:
+      context: ./accepted-call-grpc
+      dockerfile: Dockerfile
+    container_name: logger1-service
+    ports:
+      - "5001:5001"  # gRPC
+    environment:
+      - NODE_ENV=production
+      - PORT=5001
+      - SERVICE_NAME=accepted-call-logger
+    networks:
+      - chat-network
+    restart: unless-stopped
+
+
+  # 📝 سرویس لاگر  ۲(تماس‌های رد شده)
+  logger2-service:
+    build:
+      context: ./rejecter-call-grpc
+      dockerfile: Dockerfile
+    container_name: logger2-service
+    ports:
+      - "5002:5002"  
+    environment:
+      - NODE_ENV=production
+      - PORT=5002
+      - SERVICE_NAME=rejected-call-logger
+    networks:
+      - chat-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  mysql-db:
+    image: mysql:8.0
+    container_name: mysql-db
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+      - MYSQL_DATABASE=myapp_new
+      - MYSQL_USER=admin
+      - MYSQL_PASSWORD=password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d 
+    networks:
+      - chat-network
+    restart: unless-stopped
+   
+
+networks:
+  chat-network:
+    driver: bridge
+
+volumes:
+  mysql_data:

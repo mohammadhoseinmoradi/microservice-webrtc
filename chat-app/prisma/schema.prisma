@@ -1,0 +1,38 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model messages {
+  id         String        @id @default(uuid()) @db.VarChar(36)
+  content    String
+  senderId   String
+  receiverId String?
+  type       messages_type @default(PRIVATE)
+  timestamp  DateTime      @default(now())
+  isRead     Boolean       @default(false)
+  users      users         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([senderId], map: "messages_senderId_fkey")
+}
+
+model users {
+  id        String     @id @default(uuid()) @db.VarChar(36)
+  email     String     @unique
+  username  String
+  password  String
+  createdAt DateTime   @default(now())
+  isOnline  Boolean    @default(false)
+  lastSeen  DateTime?
+  messages  messages[]
+}
+
+enum messages_type {
+  PRIVATE
+  GROUP
+}
